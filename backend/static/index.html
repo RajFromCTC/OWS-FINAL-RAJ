@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Strategy Control Panel</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <!-- Custom styles -->
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container my-5">
+      <!-- Error Toast Container -->
+      <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="errorToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="toast-header bg-danger text-white">
+            <strong class="me-auto">Error</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+          <div class="toast-body" id="errorToastBody">
+            An error occurred
+          </div>
+        </div>
+      </div>
+      
+      <!-- Success Toast Container -->
+      <div class="toast-container position-fixed top-0 end-0 p-3" style="margin-top: 80px;">
+        <div id="successToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="toast-header bg-success text-white">
+            <strong class="me-auto">Success</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+          <div class="toast-body" id="successToastBody">
+            Operation completed successfully
+          </div>
+        </div>
+      </div>
+      
+      <div class="card shadow-sm">
+        <div class="card-body">
+                    <div class="card mb-4" style="border-left: 4px solid #667eea;">
+          <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <h5 class="mb-0">🔐 Kite Authentication</h5>
+          </div>
+          <div class="card-body text-center">
+            <div id="loginStatus" class="mb-3">Checking authentication...</div>
+            <button id="autoLoginBtn" class="btn btn-primary btn-lg">🔐 Auto Login</button>
+            <p class="mt-2 mb-0 text-muted small">Automatically handles Kite authentication and token management</p>
+          </div>
+        </div>
+
+        <!-- Access Token Display Section -->
+        <div class="card mb-4" style="border-left: 4px solid #28a745;">
+          <div class="card-header" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white;">
+            <h5 class="mb-0">🔑 Access Token</h5>
+          </div>
+          <div class="card-body">
+            <div id="accessTokenSection">
+              <div class="text-muted text-center">No access token available</div>
+            </div>
+          </div>
+        </div>
+          <h1 class="card-title mb-4 text-center">Trading Strategy Control Panel</h1>
+          <form id="configForm">
+            <div class="mb-3">
+              <label for="symbol" class="form-label">Index Symbol</label>
+              <select id="symbol" class="form-select">
+                 <option value="NIFTY">NIFTY</option>
+                 <option value="SENSEX">SENSEX</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="expiry" class="form-label">Expiry</label>
+              <select id="expiry" class="form-select">
+                <option value="" selected disabled>Loading…</option>
+              </select>
+              <!-- optional: show the token under the dropdown -->
+              <small id="expiryHint" class="text-muted"></small>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6 mb-3">
+                <label for="quantity" class="form-label">Quantity</label>
+                <input type="number" id="quantity" value="75" class="form-control" />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="qtyHedgeRatio" class="form-label">Qty Hedge Ratio</label>
+                <input type="number" step="0.1" id="qtyHedgeRatio" value="1.0" class="form-control" />
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6 mb-3">
+                <label for="pivotRange" class="form-label">Pivot Range Minutes</label>
+                <input type="number" id="pivotRange" value="15" class="form-control" />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="shiftThreshold" class="form-label">Shift Threshold Pts</label>
+                <input type="number" id="shiftThreshold" value="50" class="form-control" />
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6 mb-3">
+                <label for="straddleGap" class="form-label">Straddle Gap %</label>
+                <input type="number" step="0.1" id="straddleGap" value="1.0" class="form-control" />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="hedgeGap" class="form-label">Hedge Gap %</label>
+                <input type="number" step="0.1" id="hedgeGap" value="2.5" class="form-control" />
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6 mb-3">
+                <label for="orderBuffer" class="form-label">Order Buffer %</label>
+                <input type="number" step="0.1" id="orderBuffer" value="0.3" class="form-control" />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="fillTimeout" class="form-label">Fill Timeout Sec</label>
+                <input type="number" id="fillTimeout" value="5" class="form-control" />
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6 mb-3">
+                <label for="rmsCap" class="form-label">RMS Cap</label>
+                <input type="number" id="rmsCap" value="-100000" class="form-control" />
+              </div>
+              <div class="col-md-6 mb-3 form-check">
+                <input type="checkbox" id="trailToggle" class="form-check-input" checked />
+                <label for="trailToggle" class="form-check-label">Trail Stop Loss Toggle</label>
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-4 mb-3">
+                <label for="targetPnl" class="form-label">Target PnL</label>
+                <input type="number" step="0.01" id="targetPnl" value="1000.0" class="form-control" />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label for="exitPnl" class="form-label">Exit PnL</label>
+                <input type="number" step="0.01" id="exitPnl" value="-500.0" class="form-control" />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label for="rollingValue" class="form-label">Rolling Value</label>
+                <input type="number" 
+                      step="0.01" 
+                      id="rollingValue" 
+                      value="100.0" 
+                      min="0"
+                      class="form-control"
+                      oninput="checkNegative(this)" />
+                <div id="error" class="text-danger d-none">Value cannot be negative</div>
+            </div>
+            </div>
+            <!-- <div class="row g-3">
+              <div class="col-md-6 mb-3">
+                <label for="verbosity" class="form-label">Console Verbosity</label>
+                <select id="verbosity" class="form-select">
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high" selected>high</option>
+                </select>
+              </div> -->
+              <div class="col-md-6 mb-3">
+                <label for="slBuffer" class="form-label">Stop Loss Buffer %</label>
+                <input type="number" step="0.1" id="slBuffer" value="1" class="form-control" />
+              </div>
+            </div>
+            <!-- <div class="form-check mb-3">
+              <input type="checkbox" id="segregateTrades" class="form-check-input" checked />
+              <label for="segregateTrades" class="form-check-label">Segregate Trades</label>
+            </div> -->
+            <div class="d-flex justify-content-center">
+              <button type="button" class="btn btn-success me-3" onclick="setInputs()">Save Config</button>
+              <button type="button" id="runBtn" class="btn btn-primary me-2" onclick="runStrategy()">Run Strategy</button>
+              <button type="button" id="stopBtn" class="btn btn-danger me-3" onclick="stopStrategy()" style="display: none;">Stop Strategy</button>
+              <!-- <button type="button" id="exitAllBtn" class="btn btn-warning me-3" onclick="exitAllPositions()">Exit All Positions</button> -->
+              <button type="button" class="btn btn-info" onclick="loadCurrentConfig()">Load Current Config</button>
+            </div>
+          </form>
+          
+          <!-- Strategy Status Section -->
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <div class="card status-card">
+                <div class="card-header bg-primary text-white">
+                  <h5 class="mb-0">Strategy Status</h5>
+                </div>
+                <div class="card-body">
+                  <div id="strategyStatus" class="mb-3">
+                    <span class="badge bg-secondary">Not Started</span>
+                  </div>
+                  <div class="mb-2">
+                    <strong>Last Run:</strong> <span id="lastRun">Never</span>
+                  </div>
+                  <div class="mb-2">
+                    <strong>Config Status:</strong> <span id="configStatus" class="badge bg-warning">Not Saved</span>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-primary" onclick="refreshStatus()">Refresh Status</button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="card status-card">
+                <div class="card-header bg-success text-white">
+                  <h5 class="mb-0">Current Configuration</h5>
+                </div>
+                <div class="card-body">
+                  <div id="currentConfig" style="max-height: 200px; overflow-y: auto;">
+                    <em class="text-muted">No configuration loaded</em>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="loadCurrentConfig()">Reload Config</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Strategy Actions Section -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <div class="card status-card">
+                <div class="card-header bg-dark text-white">
+                  <h5 class="mb-0">Strategy Activity</h5>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <h6 class="text-muted">Latest Action</h6>
+                      <div id="latestAction" class="p-2 bg-light rounded mb-3">
+                        <div class="text-muted">No action available</div>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <h6 class="text-muted">Heartbeat Status</h6>
+                      <div id="heartbeatStatus" class="p-2 bg-light rounded mb-3">
+                        <div class="text-muted">No heartbeat</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <h6 class="text-muted">Recent Actions</h6>
+                  <div id="actionHistory" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.9em;">
+                    <div class="text-muted">No action history available</div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-dark mt-2" onclick="refreshActions()">Refresh Actions</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Current Positions Section -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <div class="card status-card">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                  <h5 class="mb-0">Current Positions</h5>
+                </div>
+                <div class="card-body">
+                  <div id="positionsContainer">
+                    <div class="text-center text-muted py-3">
+                      <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                      Loading positions...
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Trading Parameters Section -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <div class="card status-card">
+                <div class="card-header bg-warning text-dark">
+                  <h5 class="mb-0">Live Trading Parameters</h5>
+                </div>
+                <div class="card-body">
+                  <div id="tradingParams" class="row">
+                    <div class="col-md-6 col-lg-4 mb-3">
+                      <div class="text-center">
+                        <h6 class="text-muted mb-1">Symbol</h6>
+                        <span id="tradingSymbol" class="h5 text-primary">-</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4 mb-3">
+                      <div class="text-center">
+                        <h6 class="text-muted mb-1">Straddle Price</h6>
+                        <span id="straddlePrice" class="h5 text-info">-</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4 mb-3">
+                      <div class="text-center">
+                        <h6 class="text-muted mb-1">VWAP</h6>
+                        <span id="vwapPrice" class="h5 text-info">-</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4 mb-3">
+                      <div class="text-center">
+                        <h6 class="text-muted mb-1">Debit Spread </h6>
+                        <span id="mtmValue" class="h5">-</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4 mb-3">
+                      <div class="text-center">
+                        <h6 class="text-muted mb-1">Exit at</h6>
+                        <span id="exit-Pnl" class="h5 text-secondary">-</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4 mb-3">
+                      <div class="text-center">
+                        <h6 class="text-muted mb-1">Batman </h6>
+                        <span id="pnlValue" class="h5">-</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="text-center mt-2">
+                    <small class="text-muted">Last Updated: <span id="tradingLastUpdate">Never</span></small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Logs Section -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <div class="card status-card">
+                <div class="card-header bg-info text-white">
+                  <h5 class="mb-0">Strategy Logs</h5>
+                </div>
+                <div class="card-body">
+                  <div id="strategyLogs" style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.9em;">
+                    <div class="text-muted">No logs available</div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-info mt-2" onclick="refreshLogs()">Refresh Logs</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="status" class="text-center mt-4"></div>
+          <pre id="output" class="border rounded bg-light p-3"></pre>
+        </div>
+      </div>
+    </div>
+
+    <script>
+        // Global lookup so we can map token -> ISO/DDMMYYYY in the UI
+      window.expiryLookup = new Map();
+      function checkNegative(input) {
+          const error = document.getElementById('error');
+          
+          if (parseFloat(input.value) < 0) {
+              input.value = 0;
+              error.classList.remove('d-none');
+              setTimeout(() => error.classList.add('d-none'), 2000);
+          }
+      }
+
+
+async function populateExpirySelect(symbol) {
+  const sel = document.getElementById('expiry');
+  const hint = document.getElementById('expiryHint');
+  window.expiryLookup.clear();
+  sel.innerHTML = '<option value="" selected disabled>Loading…</option>';
+  if (hint) hint.textContent = '';
+
+  try {
+    const res = await apiCall(`/api/expiries?symbol=${encodeURIComponent(symbol)}`);
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+
+    sel.innerHTML = ''; // clear
+
+    if (!items.length) {
+      sel.innerHTML = '<option value="" selected disabled>No expiries found</option>';
+      return;
+    }
+
+    // Build options: text = ISO date; value = zerodha_token
+    const seen = new Set();
+    for (const it of items) {
+      const iso = it.expiry_iso || '';
+      const token = it.zerodha_token || '';
+      if (!token || seen.has(token)) continue;
+      seen.add(token);
+
+      const opt = document.createElement('option');
+      opt.value = token;            // <— this is sent to backend
+      opt.textContent = iso || token; // <— what user sees (expiry_iso)
+      opt.dataset.expiryIso = iso;
+      sel.appendChild(opt);
+
+      window.expiryLookup.set(token, { iso, ddmmyyyy: it.expiry_ddmmyyyy || '' });
+    }
+
+    // Prefill first expiry and update hint
+    if (!sel.value && sel.options.length) {
+      sel.selectedIndex = 0;
+    }
+    updateExpiryHint();
+  } catch (err) {
+    console.error('Failed to load expiries:', err);
+    sel.innerHTML = '<option value="" selected disabled>Error loading expiries</option>';
+    showErrorToast('Failed to load expiries from backend.');
+  }
+}
+
+// Optional: show the selected token under the dropdown
+function updateExpiryHint() {
+  const sel = document.getElementById('expiry');
+  const hint = document.getElementById('expiryHint');
+  if (!hint) return;
+
+  const tok = sel.value;
+  const meta = window.expiryLookup.get(tok);
+  if (tok && meta?.iso) {
+    hint.textContent = `Token: ${tok}`;
+  } else {
+    hint.textContent = '';
+  }
+}
+
+
+        function showErrorToast(message) {
+            const errorToastBody = document.getElementById('errorToastBody');
+            const errorToast = document.getElementById('errorToast');
+            errorToastBody.textContent = message;
+            const toast = new bootstrap.Toast(errorToast, {
+                autohide: true,
+                delay: 5000
+            });
+            toast.show();
+        }
+        
+        function showSuccessToast(message) {
+            const successToastBody = document.getElementById('successToastBody');
+            const successToast = document.getElementById('successToast');
+            successToastBody.textContent = message;
+            const toast = new bootstrap.Toast(successToast, {
+                autohide: true,
+                delay: 3000
+            });
+            toast.show();
+        }
+        
+        // Enhanced error handling wrapper for API calls
+        async function apiCall(url, options = {}) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response;
+            } catch (error) {
+                console.error('API call failed:', error);
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    showErrorToast('Network error: Unable to connect to server. Please check if the backend is running.');
+                } else if (error.message.includes('HTTP 500')) {
+                    showErrorToast('Server error: Internal server error occurred.');
+                } else if (error.message.includes('HTTP 404')) {
+                    showErrorToast('API endpoint not found. Please check the backend configuration.');
+                } else {
+                    showErrorToast(`Error: ${error.message}`);
+                }
+                throw error;
+            }
+        }
+        
+        async function setInputs() {
+            try {
+                const mappings = {
+                    "index": document.getElementById('symbol').value,
+                    "expiry": document.getElementById('expiry').value,
+                    "Quantity": document.getElementById('quantity').value,
+                    "QtyHedgeRatio": document.getElementById('qtyHedgeRatio').value,
+                    "PivotRangeMinutes": document.getElementById('pivotRange').value,
+                    "ShiftThresholdPts": document.getElementById('shiftThreshold').value,
+                    "StraddleGapPct": document.getElementById('straddleGap').value,
+                    "HedgeGapPct": document.getElementById('hedgeGap').value,
+                    "OrderBufferPct": document.getElementById('orderBuffer').value,
+                    "FillTimeoutSec": document.getElementById('fillTimeout').value,
+                    "RmsCap": document.getElementById('rmsCap').value,
+                    "TrailStopLossToggle": document.getElementById('trailToggle').checked,
+                    "StopLossBufferPct": document.getElementById('slBuffer').value,
+                    "TargetPnl": document.getElementById('targetPnl').value,
+                    "ExitPnl": document.getElementById('exitPnl').value,
+                    "RollingValue": document.getElementById('rollingValue').value,
+                };
+                
+                for (const [key, value] of Object.entries(mappings)) {
+                    await apiCall('/api/strategy/input', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key, value })
+                    });
+                }
+                
+                document.getElementById('status').innerText = 'Configuration saved.';
+                refreshStatus();
+                loadCurrentConfig();
+                showSuccessToast('Configuration saved successfully.');
+            } catch (error) {
+                document.getElementById('status').innerText = 'Error saving configuration.';
+                // Error toast already shown by apiCall function
+            }
+        }
+
+        async function runStrategy() {
+            try {
+                document.getElementById('status').innerText = 'Starting strategy...';
+                const res = await apiCall('/api/strategy/run', { method: 'POST' });
+                const data = await res.json();
+                
+                document.getElementById('status').innerText = 'Strategy process launched.';
+                showSuccessToast('Strategy started successfully.');
+                
+                // Update buttons immediately
+                updateButtons(true);
+                
+                // Refresh status to get updated process info
+                setTimeout(() => {
+                    refreshStatus();
+                }, 1000);
+                
+                pollOutput();
+            } catch (error) {
+                document.getElementById('status').innerText = 'Error starting strategy.';
+                // Error toast already shown by apiCall function
+            }
+        }
+        
+        async function pollOutput() {
+            try {
+                const res = await apiCall('/api/strategy/output');
+                const data = await res.json();
+                
+                // Check if the response contains an error
+                if (data.error) {
+                    showErrorToast(data.error);
+                    document.getElementById('status').innerText = 'Strategy execution failed.';
+                    document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+                    return; // Stop polling
+                }
+                
+                // Check if the response indicates an error status
+                if (data.status === 'error') {
+                    showErrorToast(data.message || 'Strategy execution failed');
+                    document.getElementById('status').innerText = 'Strategy execution failed.';
+                    document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+                    return; // Stop polling
+                }
+                
+                document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+                document.getElementById('status').innerText = 'Strategy output received.';
+                refreshStatus(); // Update status after receiving output
+                showSuccessToast('Strategy output received.');
+            } catch (error) {
+                // If it's a 204 (no content), that's expected - keep polling
+                if (error.message.includes('HTTP 204')) {
+                    setTimeout(pollOutput, 1000);
+                } else {
+                    document.getElementById('status').innerText = 'Error fetching strategy output.';
+                    // Error toast already shown by apiCall function
+                }
+            }
+        }
+        
+        async function loadCurrentConfig() {
+            try {
+                const res = await apiCall('/api/strategy/config');
+                const data = await res.json();
+                displayCurrentConfig(data.config);
+                populateFormFromConfig(data.config);
+                
+                // Get the current symbol value (either from config or defaulted to NIFTY)
+                const symbolEl = document.getElementById('symbol');
+                const currentSymbol = symbolEl.value;
+                
+                // Handle expiry selection after populating the expiry dropdown
+                if (data.config && data.config.expiry) {
+                    // First populate expiry dropdown for the current symbol
+                    await populateExpirySelect(currentSymbol);
+                    
+                    // Then select the saved expiry value
+                    const sel = document.getElementById('expiry');
+                    const idx = Array.from(sel.options).findIndex(o => o.value === String(data.config.expiry));
+                    if (idx >= 0) {
+                        sel.selectedIndex = idx;
+                        updateExpiryHint();
+                    }
+                } else {
+                    // No expiry configured, just populate with current symbol
+                    await populateExpirySelect(currentSymbol);
+                }
+            } catch (error) {
+                document.getElementById('currentConfig').innerHTML = '<em class="text-danger">Failed to load configuration</em>';
+                // If config loading fails, still default to NIFTY and populate expiries
+                const symbolElement = document.getElementById('symbol');
+                symbolElement.value = 'NIFTY';
+                await populateExpirySelect('NIFTY');
+                // Error toast already shown by apiCall function
+            }
+        }
+        
+        function populateFormFromConfig(config) {
+            // Populate form fields from loaded configuration
+            const fieldMappings = {
+                'index': 'symbol',
+                // 'expiry': 'expiry', // Skip expiry - handled separately in loadCurrentConfig
+                'Quantity': 'quantity',
+                'QtyHedgeRatio': 'qtyHedgeRatio',
+                'PivotRangeMinutes': 'pivotRange',
+                'ShiftThresholdPts': 'shiftThreshold',
+                'StraddleGapPct': 'straddleGap',
+                'HedgeGapPct': 'hedgeGap',
+                'OrderBufferPct': 'orderBuffer',
+                'FillTimeoutSec': 'fillTimeout',
+                'RmsCap': 'rmsCap',
+                'TrailStopLossToggle': 'trailToggle',
+                'StopLossBufferPct': 'slBuffer',
+                'TargetPnl': 'targetPnl',
+                'ExitPnl': 'exitPnl',
+                'RollingValue': 'rollingValue'
+            };
+            
+            for (const [configKey, fieldId] of Object.entries(fieldMappings)) {
+                if (config.hasOwnProperty(configKey)) {
+                    const element = document.getElementById(fieldId);
+                    if (element) {
+                        if (element.type === 'checkbox') {
+                            element.checked = config[configKey];
+                        } else {
+                            element.value = config[configKey];
+                        }
+                    }
+                }
+            }
+            
+            // Default to NIFTY if no symbol is configured or if symbol is empty/null
+            const symbolElement = document.getElementById('symbol');
+            if (!config.hasOwnProperty('index') || !config.index || config.index === '') {
+                symbolElement.value = 'NIFTY';
+                console.log('No symbol configured. Defaulted to NIFTY.');
+            }
+        }
+        
+        function displayCurrentConfig(config) {
+            const configDiv = document.getElementById('currentConfig');
+            if (Object.keys(config).length === 0) {
+                configDiv.innerHTML = '<em class="text-muted">No configuration saved</em>';
+                return;
+            }
+            
+            let html = '<div class="row">';
+            for (const [key, value] of Object.entries(config)) {
+                const displayKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                html += `
+                    <div class="col-12 mb-1">
+                        <small><strong>${displayKey}:</strong> 
+                        <span class="text-primary">${value}</span></small>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            configDiv.innerHTML = html;
+        }
+        
+        async function refreshLogs() {
+            try {
+                const res = await apiCall('/api/strategy/logs');
+                const data = await res.json();
+                displayLogs(data.logs || []);
+            } catch (error) {
+                document.getElementById('strategyLogs').innerHTML = '<div class="text-danger">Failed to load logs</div>';
+                console.error('Error fetching logs:', error);
+            }
+        }
+        
+        function displayLogs(logs) {
+            const logsDiv = document.getElementById('strategyLogs');
+            if (logs.length === 0) {
+                logsDiv.innerHTML = '<div class="text-muted">No logs available</div>';
+                return;
+            }
+            
+            let html = '';
+            logs.forEach(log => {
+                const timestamp = log.timestamp ? new Date(log.timestamp * 1000).toLocaleTimeString() : '';
+                const level = log.level || 'INFO';
+                const message = log.message || log;
+                
+                let levelClass = 'text-muted';
+                if (level === 'ERROR') levelClass = 'text-danger';
+                else if (level === 'WARNING') levelClass = 'text-warning';
+                else if (level === 'INFO') levelClass = 'text-info';
+                
+                html += `<div class="mb-1">
+                    <span class="text-muted">[${timestamp}]</span>
+                    <span class="badge badge-sm ${levelClass}">${level}</span>
+                    <span>${message}</span>
+                </div>`;
+            });
+            
+            logsDiv.innerHTML = html;
+            // Scroll to bottom to show latest logs
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        async function refreshTradingStatus() {
+            try {
+                const res = await apiCall('/api/strategy/trading-status');
+                const data = await res.json();
+                displayTradingStatus(data);
+            } catch (error) {
+                console.error('Error fetching trading status:', error);
+                // Don't show toast for trading status errors as it would be too noisy
+            }
+        }
+        
+        function displayTradingStatus(data) {
+            // Update symbol
+            console.log('Trading status data:', data.exit_pnl);
+            document.getElementById('tradingSymbol').textContent = data.symbol || '-';
+            
+            // Update straddle price
+            const straddlePrice = data.straddle_price;
+            document.getElementById('straddlePrice').textContent = straddlePrice ? straddlePrice.toFixed(2) : '-';
+            
+            // Update VWAP
+            const vwap = data.vwap;
+            document.getElementById('vwapPrice').textContent = vwap ? vwap.toFixed(2) : '-';
+            
+            // Update positions
+            const exit_pnl = data.exit_pnl;
+            document.getElementById('exit-Pnl').textContent = exit_pnl ? exit_pnl.toFixed(2) : '-';
+            
+            // Update P&L with color coding
+            const pnl_batman = data.pnl_batman;
+            const pnlElement = document.getElementById('pnlValue');
+            if (pnl_batman !== undefined && pnl_batman !== null) {
+                pnlElement.textContent = pnl_batman.toFixed(2);
+                pnlElement.className = pnl_batman >= 0 ? 'h5 text-success' : 'h5 text-danger';
+            } else {
+                pnlElement.textContent = '-';
+                pnlElement.className = 'h5';
+            }
+
+            // Update MTM with color coding
+            const pnl_spread = data.pnl_spread;
+            const mtmElement = document.getElementById('mtmValue');
+            if (pnl_spread !== undefined && pnl_spread !== null) {
+                mtmElement.textContent = pnl_spread.toFixed(2);
+                mtmElement.className = pnl_spread >= 0 ? 'h5 text-success' : 'h5 text-danger';
+            } else {
+                mtmElement.textContent = '-';
+                mtmElement.className = 'h5';
+            }
+            // Display positions data
+            console.log('Positions data:', data?.positions_data);
+            if (data?.positions_data) {
+                displayPositionsData(data.positions_data);
+            }
+            
+            const lastUpdate = data.last_update || (data.timestamp ? new Date(data.timestamp * 1000).toLocaleString() : 'Never');
+            document.getElementById('tradingLastUpdate').textContent = lastUpdate;
+        }
+        
+        // Positions Display Functions
+        function displayPositionsData(data) {
+            const container = document.getElementById('positionsContainer');
+            if (!data || (!data.batman_positions && !data.debit_positions)) {
+                container.innerHTML = '<div class="text-center text-muted py-3">No positions data available</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Batman Positions
+            if (data.batman_positions && Object.keys(data.batman_positions).length > 0) {
+                html += '<div class="positions-section mb-4">';
+                html += '<h6 class="text-primary mb-3"><i class="fas fa-chart-line me-2"></i>Batman Positions</h6>';
+                html += '<div class="row">';
+                
+                Object.entries(data.batman_positions).forEach(([symbol, position]) => {
+                    html += displayStrategyPositions(symbol, position, 'batman');
+                });
+                
+                html += '</div></div>';
+            }
+            
+            // Debit Positions
+            if (data.debit_positions && Object.keys(data.debit_positions).length > 0) {
+                html += '<div class="positions-section mb-4">';
+                html += '<h6 class="text-warning mb-3"><i class="fas fa-chart-bar me-2"></i>Debit Positions</h6>';
+                html += '<div class="row">';
+                
+                Object.entries(data.debit_positions).forEach(([symbol, position]) => {
+                    html += displayStrategyPositions(symbol, position, 'debit');
+                });
+                
+                html += '</div></div>';
+            }
+            
+            if (html === '') {
+                html = '<div class="text-center text-muted py-3">No positions found</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        function displayStrategyPositions(symbol, position, strategy_type) {
+            const optionInfo = parseOptionSymbol(symbol);
+            const strategyBadge = strategy_type === 'batman' ? 'badge-primary' : 'badge-warning';
+            
+            return `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card position-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">${optionInfo.base || symbol}</h6>
+                                <span class="badge ${strategyBadge}">${strategy_type.toUpperCase()}</span>
+                            </div>
+                            
+                            <div class="position-details">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small class="text-muted">Strike</small>
+                                        <div class="fw-bold">${optionInfo.strike || '-'}</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Type</small>
+                                        <div class="fw-bold">${optionInfo.type || '-'}</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-2">
+                                    <div class="col-6">
+                                        <small class="text-muted">Quantity</small>
+                                        <div class="fw-bold">${position.quantity || 0}</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Avg Price</small>
+                                        <div class="fw-bold">₹${(position.avg_price || 0).toFixed(2)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function parseOptionSymbol(symbol) {
+            // Parse option symbol like "NIFTY2410817500CE" or "BANKNIFTY2410850000PE"
+            const match = symbol.match(/^([A-Z]+)(\d{5})(\d+)(CE|PE)$/);
+            if (match) {
+                return {
+                    base: match[1],
+                    expiry: match[2],
+                    strike: match[3],
+                    type: match[4]
+                };
+            }
+            return { base: symbol, expiry: '', strike: '', type: '' };
+        }
+        
+        async function stopStrategy() {
+            try {
+                const res = await apiCall('/api/strategy/stop', { method: 'POST' });
+                const data = await res.json();
+                showSuccessToast('Strategy stopped successfully', 'success');
+                refreshStatus();
+                updateButtons(false);
+            } catch (error) {
+                // Error toast already shown by apiCall function
+                console.error('Failed to stop strategy:', error);
+            }
+        }
+        
+        async function exitAllPositions() {
+            try {
+                // Show confirmation dialog
+                const confirmed = confirm('Are you sure you want to exit all positions? This action cannot be undone.');
+                if (!confirmed) {
+                    return;
+                }
+                
+                // Disable button temporarily to prevent multiple clicks
+                const exitBtn = document.getElementById('exitAllBtn');
+                const originalText = exitBtn.innerHTML;
+                exitBtn.disabled = true;
+                exitBtn.innerHTML = 'Sending Signal...';
+                
+                const res = await apiCall('/api/strategy/exit-all', { method: 'POST' });
+                const data = await res.json();
+                showSuccessToast('Exit all positions signal sent successfully. Check strategy logs for confirmation.');
+                refreshStatus();
+                refreshActions();
+                
+                // Re-enable button after 3 seconds
+                setTimeout(() => {
+                    exitBtn.disabled = false;
+                    exitBtn.innerHTML = originalText;
+                }, 3000);
+                
+            } catch (error) {
+                // Error toast already shown by apiCall function
+                console.error('Failed to send exit all positions signal:', error);
+                
+                // Re-enable button on error
+                const exitBtn = document.getElementById('exitAllBtn');
+                exitBtn.disabled = false;
+                exitBtn.innerHTML = 'Exit All Positions';
+            }
+        }
+        
+        function updateButtons(isRunning) {
+            const runBtn = document.getElementById('runBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            if (isRunning) {
+                runBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+            } else {
+                runBtn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+            }
+        }
+        
+        function updateStrategyStatus(statusData) {
+            const statusElement = document.getElementById('strategyStatus');
+            const lastRunElement = document.getElementById('lastRun');
+            const configStatusElement = document.getElementById('configStatus');
+            
+            // Determine if strategy is running.  (statusData.execution_status === 'running' || statusData.execution_status === 'starting')
+            const isRunning =  (statusData.control_signal && statusData.control_signal.action === 'start');
+
+            // Update buttons based on running status
+            updateButtons(isRunning);
+            
+            // Update strategy status display
+            if (isRunning) {
+                const statusText = statusData.execution_status || 'running';
+                statusElement.innerHTML = `<span class="badge bg-success">${statusText.charAt(0).toUpperCase() + statusText.slice(1)}</span>`;
+                if (statusData.message) {
+                    statusElement.innerHTML += `<br><small class="text-muted">${statusData.message}</small>`;
+                }
+                if (statusData.process_pid) {
+                    statusElement.innerHTML += `<br><small class="text-muted">PID: ${statusData.process_pid}</small>`;
+                }
+            } else if (statusData.execution_status === 'error') {
+                statusElement.innerHTML = '<span class="badge bg-danger">Error</span>';
+                if (statusData.message) {
+                    statusElement.innerHTML += `<br><small class="text-danger">${statusData.message}</small>`;
+                }
+            } else if (statusData.execution_status === 'stopped') {
+                statusElement.innerHTML = '<span class="badge bg-warning">Stopped</span>';
+                if (statusData.message) {
+                    statusElement.innerHTML += `<br><small class="text-muted">${statusData.message}</small>`;
+                }
+            } else if (statusData.last_result === 'success') {
+                statusElement.innerHTML = '<span class="badge bg-info">Last Run: Success</span>';
+            } else {
+                statusElement.innerHTML = '<span class="badge bg-secondary">Idle</span>';
+            }
+            
+            // Update last run time
+            if (statusData.last_run) {
+                const lastRunDate = new Date(statusData.last_run * 1000);
+                lastRunElement.innerText = lastRunDate.toLocaleString();
+            } else {
+                lastRunElement.innerText = 'Never';
+            }
+            
+            // Update config status
+            if (statusData.config_available) {
+                configStatusElement.className = 'badge bg-success';
+                configStatusElement.innerText = 'Saved';
+            } else {
+                configStatusElement.className = 'badge bg-warning';
+                configStatusElement.innerText = 'Not Saved';
+            }
+        }
+        
+        async function refreshStatus() {
+            try {
+                const res = await apiCall('/api/strategy/status');
+                const data = await res.json();
+                console.log('Strategy status data:', data);
+                updateStrategyStatus(data);
+            } catch (error) {
+                console.error('Error refreshing status:', error);
+                // Don't show toast for status refresh errors as it would be too noisy
+            }
+        }
+        
+        async function refreshActions() {
+            try {
+                const res = await apiCall('/api/strategy/actions');
+                const data = await res.json();
+                displayActions(data);
+            } catch (error) {
+                document.getElementById('latestAction').innerHTML = '<div class="text-danger">Failed to load actions</div>';
+                console.error('Error fetching actions:', error);
+            }
+        }
+        
+        function displayActions(data) {
+            // Display latest action
+            const latestActionDiv = document.getElementById('latestAction');
+            if (data.latest_action) {
+                const action = data.latest_action;
+                const timestamp = new Date(action.timestamp * 1000).toLocaleTimeString();
+                latestActionDiv.innerHTML = `
+                    <div>${action.action}</div>
+                    <small class="text-muted">${timestamp}</small>
+                `;
+            } else {
+                latestActionDiv.innerHTML = '<div class="text-muted">No action available</div>';
+            }
+            
+            // Update heartbeat status with enhanced info
+            updateHeartbeatStatus();
+            
+            // Display action history
+            const historyDiv = document.getElementById('actionHistory');
+            if (data.action_history && data.action_history.length > 0) {
+                let html = '';
+                data.action_history.forEach(action => {
+                    const timestamp = new Date(action.timestamp * 1000).toLocaleTimeString();
+                    html += `<div class="mb-1">
+                        <span class="text-muted">[${timestamp}]</span>
+                        <span>${action.action}</span>
+                    </div>`;
+                });
+                historyDiv.innerHTML = html;
+                // Scroll to top to show latest actions
+                historyDiv.scrollTop = 0;
+            } else {
+                historyDiv.innerHTML = '<div class="text-muted">No action history available</div>';
+            }
+        }
+        
+        // Enhanced heartbeat status function
+        async function handleAutoLogin() {
+          const btnEl = document.getElementById('autoLoginBtn');
+          
+          try {
+            btnEl.innerHTML = '⏳ Checking credentials...';
+            btnEl.disabled = true;
+            
+            // Call the backend to handle login
+            const response = await apiCall('/api/auth/login', { method: 'POST' });
+            const data = await response.json();
+            
+            console.log('Login response:', data); // Debug log
+            
+            if (data.status === 'already_authenticated') {
+              document.getElementById('loginStatus').innerHTML = `✅ ${data.message}`;
+              btnEl.innerHTML = '✅ Already Logged In';
+              btnEl.className = 'btn btn-success btn-lg';
+              showSuccessToast('Already authenticated with valid credentials!');
+              btnEl.disabled = false;
+              
+              // Refresh auth status to load access token
+              checkAuthStatus();
+            } else if (data.status === 'login_required') {
+              // Use the URLs provided by backend (which reads from creds.json)
+              showSuccessToast('Clearing existing session and opening fresh login...');
+              
+              // Open logout URL first
+              const authWindow = window.open(data.logout_url, 'kite_auth');
+              
+              // After delay, redirect to login URL
+              setTimeout(() => {
+                if (authWindow && !authWindow.closed) {
+                  authWindow.location.href = data.login_url;
+                } else {
+                  window.open(data.login_url, 'kite_auth');
+                }
+              }, 2000);
+              
+              // Show modal for token input
+              setTimeout(() => {
+                const modal = new bootstrap.Modal(document.getElementById('loginModal'));
+                modal.show();
+              }, 5000);
+              
+              btnEl.innerHTML = '🔐 Auto Login';
+              btnEl.disabled = false;
+            }
+          } catch (error) {
+            console.error('Auto login failed:', error);
+            showErrorToast('Login failed: ' + error.message);
+            btnEl.disabled = false;
+            btnEl.innerHTML = '🔐 Auto Login';
+            document.getElementById('loginStatus').innerHTML = '❌ Login failed';
+          }
+        }
+
+        async function submitRequestToken() {
+          const tokenInput = document.getElementById('requestTokenInput');
+          const submitBtn = document.getElementById('submitTokenBtn');
+          const modal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+          
+          if (!tokenInput || !tokenInput.value.trim()) {
+            showErrorToast('Please enter a valid URL');
+            return;
+          }
+          const parsedUrl = new URL(tokenInput.value.trim());
+          const requestToken = parsedUrl.searchParams.get("request_token");
+          if (!requestToken) {
+            showErrorToast('Invalid request token URL. Please provide a valid request token.');
+            return;
+          }
+      
+        try {
+          submitBtn.innerHTML = '⏳ Submitting...';
+          submitBtn.disabled = true;
+          
+          const response = await apiCall('/api/auth/token', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ request_token: requestToken })
+          });
+          
+          const data = await response.json();
+          
+          if (data.status === 'success') {
+            showSuccessToast(`Successfully authenticated as ${data.user_name}`);
+            document.getElementById('loginStatus').innerHTML = `✅ Authenticated as ${data.user_name}`;
+            document.getElementById('autoLoginBtn').innerHTML = '✅ Logged In';
+            document.getElementById('autoLoginBtn').className = 'btn btn-success btn-lg';
+            
+            // Clear the input and close modal
+            tokenInput.value = '';
+            if (modal) {
+              modal.hide();
+            }
+            
+            // Refresh auth status to load access token
+            checkAuthStatus();
+          } else {
+            showErrorToast(data.error || 'Authentication failed');
+          }
+        
+      } catch (error) {
+        showErrorToast('Failed to submit token: ' + error.message);
+        console.error('Token submission error:', error);
+      } finally {
+        submitBtn.innerHTML = 'Submit Token';
+        submitBtn.disabled = false;
+      }
+    }
+
+        async function checkAuthStatus() {
+          try {
+            const response = await apiCall('/api/auth/status');
+            const data = await response.json();
+            
+            if (data.authenticated) {
+              document.getElementById('loginStatus').innerHTML = `✅ Authenticated as ${data.user_name}`;
+              document.getElementById('autoLoginBtn').innerHTML = '✅ Already Logged In';
+              document.getElementById('autoLoginBtn').className = 'btn btn-success btn-lg';
+              
+              // Display access token
+              displayAccessToken(data.access_token);
+            } else {
+              document.getElementById('loginStatus').innerHTML = '❌ Not authenticated';
+              document.getElementById('autoLoginBtn').innerHTML = '🔐 Auto Login';
+              document.getElementById('autoLoginBtn').className = 'btn btn-primary btn-lg';
+              
+              // Clear access token display
+              clearAccessToken();
+            }
+          } catch (error) {
+            document.getElementById('loginStatus').innerHTML = '⚠️ Unable to check authentication status';
+            console.error('Auth check error:', error);
+            clearAccessToken();
+          }
+        }
+    
+        function displayAccessToken(token) {
+          const tokenSection = document.getElementById('accessTokenSection');
+          if (!token) {
+            clearAccessToken();
+            return;
+          }
+          
+          // Mask the token for display (show first 8 and last 8 characters)
+          const maskedToken = token.length > 16 ? 
+            `${token.substring(0, 8)}...${token.substring(token.length - 8)}` : 
+            token;
+          
+          tokenSection.innerHTML = `
+            <div class="row align-items-center">
+              <div class="col-lg-8 mb-2 mb-lg-0">
+                <div class="input-group">
+                  <span class="input-group-text bg-light">🔑</span>
+                  <input type="text" class="form-control" id="tokenDisplay" value="${maskedToken}" readonly>
+                  <button class="btn btn-outline-secondary" type="button" id="toggleTokenBtn" onclick="toggleTokenVisibility()">
+                    👁️ Show
+                  </button>
+                </div>
+              </div>
+              <div class="col-lg-4">
+                <button class="btn btn-success w-100" onclick="copyAccessToken()">
+                  📋 Copy Token
+                </button>
+              </div>
+            </div>
+            <div class="mt-2">
+              <small class="text-muted">
+                <strong>Note:</strong> Keep your access token secure. It provides full access to your trading account.
+              </small>
+            </div>
+          `;
+          
+          // Store the full token for copying
+          window.currentAccessToken = token;
+          window.tokenVisible = false;
+        }
+        
+        function clearAccessToken() {
+          const tokenSection = document.getElementById('accessTokenSection');
+          tokenSection.innerHTML = '<div class="text-muted text-center">No access token available</div>';
+          window.currentAccessToken = null;
+          window.tokenVisible = false;
+        }
+        
+        function toggleTokenVisibility() {
+          const tokenDisplay = document.getElementById('tokenDisplay');
+          const toggleBtn = document.getElementById('toggleTokenBtn');
+          
+          if (!window.currentAccessToken) return;
+          
+          if (window.tokenVisible) {
+            // Hide token
+            const maskedToken = window.currentAccessToken.length > 16 ? 
+              `${window.currentAccessToken.substring(0, 8)}...${window.currentAccessToken.substring(window.currentAccessToken.length - 8)}` : 
+              window.currentAccessToken;
+            tokenDisplay.value = maskedToken;
+            toggleBtn.innerHTML = '👁️ Show';
+            window.tokenVisible = false;
+          } else {
+            // Show full token
+            tokenDisplay.value = window.currentAccessToken;
+            toggleBtn.innerHTML = '🙈 Hide';
+            window.tokenVisible = true;
+          }
+        }
+        
+        async function copyAccessToken() {
+          if (!window.currentAccessToken) {
+            showErrorToast('No access token available to copy');
+            return;
+          }
+          
+          try {
+            await navigator.clipboard.writeText(window.currentAccessToken);
+            showSuccessToast('Access token copied to clipboard!');
+          } catch (error) {
+            console.error('Failed to copy token:', error);
+            
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = window.currentAccessToken;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+              document.execCommand('copy');
+              showSuccessToast('Access token copied to clipboard!');
+            } catch (err) {
+              showErrorToast('Failed to copy token. Please copy manually from the input field.');
+            }
+            
+            document.body.removeChild(textArea);
+          }
+        }
+    
+        async function updateHeartbeatStatus() {
+            try {
+                const response = await fetch('/api/strategy/heartbeat');
+                const data = await response.json();
+                
+                const heartbeatDiv = document.getElementById('heartbeatStatus');
+                
+                if (data.status === 'no_heartbeat') {
+                    heartbeatDiv.innerHTML = `
+                        <div class="text-danger"><strong>No Heartbeat</strong></div>
+                        <small class="text-muted">Strategy may not be running</small>
+                    `;
+                    return;
+                }
+                
+                const heartbeat = data.heartbeat;
+                const timestamp = new Date(heartbeat.timestamp * 1000).toLocaleTimeString();
+                const age = Math.round(data.heartbeat_age_seconds);
+                
+                // Determine status color and text based on responsiveness
+                let statusColor, statusText, statusIcon;
+                switch (data.responsiveness) {
+                    case 'excellent':
+                        statusColor = 'text-success';
+                        statusText = '🟢 Excellent';
+                        statusIcon = '✅';
+                        break;
+                    case 'good':
+                        statusColor = 'text-info';
+                        statusText = '🟡 Good';
+                        statusIcon = '⚡';
+                        break;
+                    case 'poor':
+                        statusColor = 'text-warning';
+                        statusText = '🟠 Poor';
+                        statusIcon = '⚠️';
+                        break;
+                    case 'dead':
+                        statusColor = 'text-danger';
+                        statusText = '🔴 Dead';
+                        statusIcon = '💀';
+                        break;
+                    default:
+                        statusColor = 'text-muted';
+                        statusText = '❓ Unknown';
+                        statusIcon = '❓';
+                }
+                
+                const runningStatus = heartbeat.is_running ? 'Running' : 'Waiting';
+                const runningColor = heartbeat.is_running ? 'text-success' : 'text-warning';
+                
+                heartbeatDiv.innerHTML = `
+                    <div class="${statusColor}">
+                        <strong>${statusIcon} ${statusText}</strong>
+                    </div>
+                    <div class="small">
+                        <div><strong>Last Beat:</strong> ${timestamp} (${age}s ago)</div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                const heartbeatDiv = document.getElementById('heartbeatStatus');
+                heartbeatDiv.innerHTML = `
+                    <div class="text-danger"><strong>Error</strong></div>
+                    <small class="text-muted">Failed to get heartbeat: ${error.message}</small>
+                `;
+            }
+        }
+
+        // Auto-refresh status and config on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthStatus();
+            document.getElementById('autoLoginBtn').addEventListener('click', handleAutoLogin);
+            document.getElementById('submitTokenBtn').addEventListener('click', submitRequestToken);
+            refreshStatus();
+            refreshTradingStatus();
+            document.getElementById('expiry').addEventListener('change', updateExpiryHint);
+            refreshLogs();
+            refreshActions();
+            
+            // Ensure NIFTY is selected by default
+            const symbolElement = document.getElementById('symbol');
+            symbolElement.value = 'NIFTY';
+            
+            // Load current config first, which will handle symbol and expiry setup
+            loadCurrentConfig().then(() => {
+                // Set up event listener for symbol changes
+                const symEl = document.getElementById('symbol');
+                symEl.addEventListener('change', (e) => {
+                    document.getElementById('expiry').selectedIndex = -1; // reset
+                    populateExpirySelect(e.target.value);
+                });
+            }).catch(() => {
+                // If config loading fails, fall back to default behavior with NIFTY
+                const symEl = document.getElementById('symbol');
+                symEl.value = 'NIFTY'; // Ensure NIFTY is selected
+                populateExpirySelect('NIFTY');
+                
+                symEl.addEventListener('change', (e) => {
+                    document.getElementById('expiry').selectedIndex = -1; // reset
+                    populateExpirySelect(e.target.value);
+                });
+            });
+
+            
+            // Set up auto-refresh every 10 seconds for status and trading data
+            setInterval(() => {
+                refreshStatus();
+                refreshTradingStatus();
+                refreshActions();
+                updateHeartbeatStatus(); // Add heartbeat updates
+            }, 10000);
+            
+            // More frequent heartbeat updates every 5 seconds
+            setInterval(() => {
+                updateHeartbeatStatus();
+            }, 5000);
+            
+            // Refresh logs every 15 seconds
+            setInterval(() => {
+                refreshLogs();
+            }, 15000);
+        });
+    </script>
+    
+    <!-- Bootstrap JavaScript for Toast functionality -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <div id="loginModal" class="modal fade" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="loginModalLabel">🔐 Complete Kite Login</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-center">
+          <p>After login, copy the URL and paste below:</p>
+          <input type="text" id="requestTokenInput" class="form-control" placeholder="Enter URL">
+        </div>
+        <div class="modal-footer">
+          <button id="submitTokenBtn" type="button" class="btn btn-success">Submit Token</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </body>
+</html>
