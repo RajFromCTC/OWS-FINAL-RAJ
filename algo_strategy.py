@@ -274,6 +274,9 @@ class AlgoStrategy(KiteTrader):
 
         update_strategy_status(self.redis_client, "running", "Waiting for StraddleVWAPUpdater to be ready...")
         while True:
+            # 🔍 Also check for TradingView signals while waiting for internal data
+            self._check_tradingview_signal()
+            
             logger.info(f"[{self.symbol}] Waiting for StraddleVWAPUpdater to be ready...")
             if StraddleVWAPUpdater.ready_to_execute:
                 break
@@ -315,6 +318,7 @@ class AlgoStrategy(KiteTrader):
         # time.sleep(60 - now.second)
 
         while not self.exit_signal.is_set():
+            self._check_tradingview_signal()
             now = datetime.now()
             if now.second != 0:
                 time.sleep(1)
@@ -811,4 +815,39 @@ class AlgoStrategy(KiteTrader):
         if reason == "REQUESTED":
             update_strategy_status(self.redis_client, "stopped", "Strategy stopped successfully")
             update_strategy_action(self.redis_client, "stopped", "Strategy stopped successfully")
+
+    def _check_tradingview_signal(self):
+        try:
+            signal_json = self.redis_client.get("strategy:tv_signal");
+            if not signal_json:
+                return
+            
+            signal = json.loads(signal_json)
+
+            if time.time() - signal.get('timestamp',0) >  60:
+                self.redis_client.delete("strategy:tv_signal")
+                return
+            
+            decision = signal.get('decision',{})
+            action = decision.get('action')
+            side = decision.get('side')
+            
+            if action == "buy":
+                logger.info(f"TV SIGNAL RECEIVED : Executing {side} Debit Spread")
+                update_strategy_action(self.redis_client, f"TV Signal : Buying {side} Debit Spread")
+                
+                self._execute_debit_spread(side)
+                self.debit_spread_active = True
+
+            elif action == 'sell':
+                logger.info(f"TV SIGNAL RECEIVED : Exiting all positions")
+                update_strategy_action(self.redis_client,"TV Signal : Exiting All")
+                self.exit_all_positions()
+
+            self.redis_client.delete("strategy:tv_signal")
+
+        except Exception as e:
+            logger.error(f"Error checking TV signal: {e}")
+        
+
 

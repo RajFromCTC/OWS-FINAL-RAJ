@@ -253,7 +253,7 @@ class KiteTrader:
                 except Exception as e:
                     logger.error(f"MTM fetch error for {sym} in BATMAN: {e}")
         
-+        # Compute unrealized PnL for DEBIT_SPREAD
+        # Compute unrealized PnL for DEBIT_SPREAD
         debit_unrealized = 0.0
         if hasattr(self, 'debit_spread_positions'):
             # Create a copy to avoid "dictionary changed size during iteration" error
