@@ -1,13 +1,14 @@
 import os
 import requests
 import html
+import logging
 
-TELEGRAM_BOT_TOKEN = "8405034100:AAFWrKVb2f8le_VtLFZbl6G2TJApF-Hq838"
-TELEGRAM_CHAT_ID = "1806343942"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 MAX_FIELD_LEN = 900 
 
-
+backend_logger = logging.getLogger("backend")
 def clip(text: str, n: int = MAX_FIELD_LEN) -> str:
     if not text:
         return "N/A"
@@ -17,12 +18,12 @@ def clip(text: str, n: int = MAX_FIELD_LEN) -> str:
 
 def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("[Telegram] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in env")
+        backend_logger.info("[Telegram] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in env")
         return
 
     primary_conf = int(primary.get("confidence", 0) or 0)
     if primary_conf < 8:
-        print(f"[Telegram] Skipped: Confidence {primary_conf} is below 8")
+        backend_logger.info(f"[Telegram] Skipped: Confidence {primary_conf} is below 8")
         return
 
     signal_side = "BUY" if rsi_momentum == "POSITIVE" else "SELL"
@@ -31,11 +32,10 @@ def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum):
     psych = clip(primary.get("psychology"))
     reasoning = clip(primary.get("reasoning"))
 
-    # Escape everything that might break formatting
     ticker_e = html.escape(str(ticker))
     psych_e = html.escape(psych)
     reasoning_e = html.escape(reasoning)
-
+  
     message = (
         f"{title_emoji} <b>HIGH CONFIDENCE {signal_side} SETUP</b>\n"
         f"Ticker: <code>{ticker_e}</code>\n"
@@ -60,7 +60,6 @@ def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum):
     else:
         message += "⚠️ <b>No Trade Triggered</b> (Rules not met)\n\n"
 
-    # Hourly alignment summary (your real alignment is stored in primary)
     align_summary = primary.get("hourly_alignment")
     align_conf = primary.get("alignment_confidence")
 
@@ -84,9 +83,9 @@ def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum):
     try:
         response = requests.post(url, json=payload, timeout=10)
         response.raise_for_status()
-        print("[Telegram] Alert sent successfully!")
+        backend_logger.info("[Telegram] Alert sent successfully!, ", primary)
     except requests.exceptions.HTTPError as e:
-        print(f"[Telegram] HTTP Error: {e}")
-        print(f"[Telegram] Response: {response.text}")
+        backend_logger.error(f"[Telegram] HTTP Error: {e}")
+        backend_logger.error(f"[Telegram] Response: {response.text}")
     except Exception as e:
-        print(f"[Telegram] Error sending alert: {e}")
+        backend_logger.error(f"[Telegram] Error sending alert: {e}")
