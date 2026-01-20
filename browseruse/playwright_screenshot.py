@@ -8,6 +8,7 @@ from vision_utils import analyze_adx, analyze_alignment_context
 from telegram_utils import send_telegram_alert
 from email_utils import send_email_alert
 from playwrightUtils import set_timeframe_by_typing
+import uuid  
 
 CDP_URL = "http://127.0.0.1:9222"
 BASE_CHART_URL = "https://in.tradingview.com/chart/s3TnltIC/"
@@ -184,7 +185,12 @@ async def run_analysis_flow(rsi_momentum, ticker, interval, intent):
 
        
         await goto_chart(page, ticker, interval)
-        screenshot_path = "chart_primary.png"
+
+        # Create a unique name for this run
+        unique_id = uuid.uuid4().hex[:8]
+        screenshot_path = f"chart_primary_{unique_id}.png"
+
+
         await page.bring_to_front()
         await page.screenshot(path=screenshot_path, full_page=False)
         
@@ -232,10 +238,10 @@ async def run_analysis_flow(rsi_momentum, ticker, interval, intent):
         print("Checking Telegram alert criteria...")
         if (
             primary_res["confidence"] >= 8
-            and (
-                intent.lower() == "evaluation"
-                or (intent.lower() == "live_trade" and primary_res["trade_decision"] == "TRADE")
-            )
+            # and (
+            #     intent.lower() == "evaluation"
+            #     or (intent.lower() == "live_trade" and primary_res["trade_decision"] == "TRADE")
+            # )
         ):
             send_telegram_alert(
                 ticker=ticker,

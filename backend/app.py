@@ -684,8 +684,8 @@ def tradingview_webhook():
                     "analysis": json_output
                 }
                 
-                r.set("strategy:latest_vision_analysis", json.dumps(signal))
-                r.set("strategy:tv_signal", json.dumps(signal))
+                # r.set("strategy:latest_vision_analysis", json.dumps(signal))
+                # r.set("strategy:tv_signal", json.dumps(signal))
                 
                 backend_logger.info(f"✅ Analysis complete: {json_output.get('trade_decision')}")
                 
@@ -733,7 +733,7 @@ def tradingview_webhook():
             "raw_data": data,
             "decision": decision
         }
-        r.set("strategy:tv_signal",json.dumps(signal))
+        # r.set("strategy:tv_signal",json.dumps(signal))
 
         return jsonify({
             "status":"received",
