@@ -6,6 +6,7 @@ import sys
 from playwright.async_api import async_playwright
 from vision_utils import analyze_adx, analyze_alignment_context
 from telegram_utils import send_telegram_alert
+from email_utils import send_email_alert
 from playwrightUtils import set_timeframe_by_typing
 
 CDP_URL = "http://127.0.0.1:9222"
@@ -17,13 +18,7 @@ async def analyze_single_timeframe(page, ticker, interval, label, rsi_momentum=N
     pass 
 
 def _interval_to_tv_typing(interval: str) -> str:
-    """
-    What we will TYPE on the TradingView chart.
-    TradingView accepts:
-      - minutes: 1, 3, 5, 15, 30
-      - daily: 1D (or D), weekly: 1W (or W), monthly: 1M (or M)
-      - hours: TradingView often accepts minutes (60 for 1h, 240 for 4h)
-    """
+  
     iv = str(interval).strip()
     iv_l = iv.lower()
 
@@ -38,17 +33,25 @@ def _interval_to_tv_typing(interval: str) -> str:
     if iv_l in ["1m", "m"]:
         return "1M"
 
-    # if "5m" -> "5"
+  
     if iv_l.endswith("m") and iv_l[:-1].isdigit():
         return iv_l[:-1]
 
-    # if "5" -> "5"
+
     return iv
 
 async def goto_chart(page, ticker, interval):
 
     separator = "&" if "?" in BASE_CHART_URL else "?"
     symbol_url = f"{BASE_CHART_URL}{separator}symbol={ticker}"
+    
+    try:
+        current_url = page.url
+        if current_url == symbol_url:
+            print(f"[INFO] Already on target chart page: {current_url}, skipping navigation.")
+            return
+    except Exception:
+        pass
 
     try:
         await page.goto(symbol_url)
@@ -57,10 +60,31 @@ async def goto_chart(page, ticker, interval):
         try:
             await page.mouse.move(50, 50)
             await page.wait_for_timeout(500)
-            legends = await page.locator("[class*='legend-'] button[class*='toggler-']").all()
-            if legends:
-                await legends[0].click()
-        except:
+            
+           
+            toggler = page.locator("[class*='legend-'] button[class*='toggler-']").first
+            if await toggler.is_visible():
+               
+                needs_click = await toggler.evaluate("""(btn) => {
+                    const title = (btn.getAttribute('title') || '').toLowerCase();
+                    const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+                    const text = (btn.innerText || '').toLowerCase();
+                    
+                    // If it says 'Hide', it is already open -> do NOT click.
+                    if (title.includes('hide') || label.includes('hide') || text.includes('hide')) {
+                        return false; 
+                    }
+                    // If it says 'Show' or 'Expand' or is 'false', it is closed -> click it.
+                    return true;
+                }""")
+                
+                if needs_click:
+                    print("[INFO] Legend is hidden (no 'Hide' found), clicking to show...")
+                    await toggler.click()
+                else:
+                    print("[INFO] Legend is already visible ('Hide' detected), skipping click.")
+        except Exception as e:
+            print(f"[DEBUG] Legend toggle logic error: {e}")
             pass
 
 
@@ -93,13 +117,60 @@ async def goto_chart(page, ticker, interval):
             try:
                 await page.mouse.move(50, 50)
                 await page.wait_for_timeout(500)
-                legends = await page.locator("[class*='legend-'] button[class*='toggler-']").all()
-                if legends:
-                    await legends[0].click()
-            except:
+                
+                toggler = page.locator("[class*='legend-'] button[class*='toggler-']").first
+                if await toggler.is_visible():
+                    needs_click = await toggler.evaluate("""(btn) => {
+                        const title = (btn.getAttribute('title') || '').toLowerCase();
+                        const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+                        const text = (btn.innerText || '').toLowerCase();
+                        if (title.includes('hide') || label.includes('hide') || text.includes('hide')) {
+                            return false; 
+                        }
+                        return true;
+                    }""")
+                    
+                    if needs_click:
+                        print("[INFO] (Fallback) Legend is hidden, clicking to show...")
+                        await toggler.click()
+                    else:
+                        print("[INFO] (Fallback) Legend is already visible, skipping click.")
+            except Exception as e:
+                print(f"[DEBUG] Fallback legend toggle logic error: {e}")
                 pass
         except Exception as e2:
             print(f"Nav error (fallback also failed): {e2}")
+
+def apply_trading_rules(analysis, webhook_rsi):
+    adx_bullish = analysis.get("is_adx_above_20") is True
+    tci_status = analysis.get("tci_cross")
+    confirmation = analysis.get("close_confirmation")
+    rr_is_good = analysis.get("rr_ratio") == "1:2"
+
+    final_decision = "NO_TRADE"
+    signal_type = "NONE"
+
+    if (
+        webhook_rsi == "POSITIVE"
+        and adx_bullish
+        and tci_status == "CROSSOVER"
+        and confirmation == "CONFIRMED_BREAKOUT"
+        and rr_is_good
+    ):
+        final_decision = "TRADE"
+        signal_type = "BUY"
+
+    elif (
+        webhook_rsi == "NEGATIVE"
+        and adx_bullish
+        and tci_status == "CROSSUNDER"
+        and confirmation == "CONFIRMED_BREAKDOWN"
+        and rr_is_good
+    ):
+        final_decision = "TRADE"
+        signal_type = "SELL"
+
+    return final_decision, signal_type
 
 async def run_analysis_flow(rsi_momentum, ticker, interval, intent):
     async with async_playwright() as p:
@@ -150,22 +221,36 @@ async def run_analysis_flow(rsi_momentum, ticker, interval, intent):
             await page.bring_to_front()
             await page.screenshot(path=align_path, full_page=False)
 
-            alignment = analyze_alignment_context(align_path, primary_res)
+            alignment = analyze_alignment_context(align_path, primary_res, interval_key, higher_tf)
 
-            primary_res[f"alignment_analysis_{interval_key}"] = alignment.get("alignment_analysis")
-            primary_res[f"alignment_confidence_{interval_key}"] = alignment.get("alignment_confidence")
+            primary_res[f"alignment_analysis"] = alignment.get("alignment_analysis")
+            primary_res[f"alignment_confidence"] = alignment.get("alignment_confidence")
             primary_res["alignment_tf"] = higher_tf
         else:
             print(f"No alignment mapping for interval={interval}. Skipping alignment.")
      
         print("Checking Telegram alert criteria...")
-        send_telegram_alert(
-            ticker=ticker,
-            primary=primary_res,
-            hourly={}, 
-            daily={}, 
-            rsi_momentum=rsi_momentum 
-        )
+        if (
+            primary_res["confidence"] >= 8
+            and (
+                intent.lower() == "evaluation"
+                or (intent.lower() == "live_trade" and primary_res["trade_decision"] == "TRADE")
+            )
+        ):
+            send_telegram_alert(
+                ticker=ticker,
+                primary=primary_res,
+                hourly={}, 
+                daily={}, 
+                rsi_momentum=rsi_momentum,
+                screenshot_path=screenshot_path
+            )
+            # send_email_alert(
+            #     ticker=ticker,
+            #     primary=primary_res,
+            #     rsi_momentum=rsi_momentum,
+            #     screenshot_path=screenshot_path
+            # )
 
         return primary_res
 

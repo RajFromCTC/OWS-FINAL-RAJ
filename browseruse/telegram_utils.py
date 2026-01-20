@@ -6,9 +6,9 @@ import logging
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-MAX_FIELD_LEN = 900 
-
+MAX_FIELD_LEN = 900
 backend_logger = logging.getLogger("backend")
+
 def clip(text: str, n: int = MAX_FIELD_LEN) -> str:
     if not text:
         return "N/A"
@@ -16,7 +16,7 @@ def clip(text: str, n: int = MAX_FIELD_LEN) -> str:
     return text if len(text) <= n else text[:n] + "…"
 
 
-def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum):
+def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum, screenshot_path=None):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         backend_logger.info("[Telegram] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in env")
         return
@@ -35,7 +35,7 @@ def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum):
     ticker_e = html.escape(str(ticker))
     psych_e = html.escape(psych)
     reasoning_e = html.escape(reasoning)
-  
+
     message = (
         f"{title_emoji} <b>HIGH CONFIDENCE {signal_side} SETUP</b>\n"
         f"Ticker: <code>{ticker_e}</code>\n"
@@ -44,23 +44,24 @@ def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum):
         f"📝 <b>Reasoning</b>:\n<i>{reasoning_e}</i>\n\n"
     )
 
-    if primary.get("trade_decision") == "TRADE":
-        entry = primary.get("entry_price")
-        sl = primary.get("stop_loss")
-        target = primary.get("target")
-        rr = primary.get("rr_ratio", "N/A")
+    entry = primary.get("entry_price")
+    sl = primary.get("stop_loss")
+    target = primary.get("target")
+    rr = primary.get("rr_ratio", "N/A")
 
+    if any([entry, sl, target]):
         message += (
             f"🎯 <b>ACTION PLAN</b>\n"
-            f"• Price: <code>{html.escape(str(entry))}</code>\n"
-            f"• Stop Loss: <code>{html.escape(str(sl))}</code>\n"
-            f"• Target: <code>{html.escape(str(target))}</code>\n"
+            f"• Price: <code>{html.escape(str(entry or 'N/A'))}</code>\n"
+            f"• Stop Loss: <code>{html.escape(str(sl or 'N/A'))}</code>\n"
+            f"• Target: <code>{html.escape(str(target or 'N/A'))}</code>\n"
             f"• R/R Ratio: <code>{html.escape(str(rr))}</code>\n\n"
         )
-    else:
+
+    if primary.get("trade_decision") != "TRADE":
         message += "⚠️ <b>No Trade Triggered</b> (Rules not met)\n\n"
 
-    align_summary = primary.get("hourly_alignment")
+    align_summary = primary.get("alignment_analysis")
     align_conf = primary.get("alignment_confidence")
 
     if align_summary:
@@ -72,7 +73,8 @@ def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum):
     else:
         message += "📊 <b>Hourly Alignment</b>\n• No alignment data available.\n"
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    # 1) Send the TEXT message (same as before)
+    send_msg_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
@@ -81,11 +83,30 @@ def send_telegram_alert(ticker, primary, hourly, daily, rsi_momentum):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=10)
-        response.raise_for_status()
-        backend_logger.info("[Telegram] Alert sent successfully!, ", primary)
-    except requests.exceptions.HTTPError as e:
-        backend_logger.error(f"[Telegram] HTTP Error: {e}")
-        backend_logger.error(f"[Telegram] Response: {response.text}")
+        resp = requests.post(send_msg_url, json=payload, timeout=10)
+        backend_logger.info(f"[Telegram] sendMessage status={resp.status_code} body={resp.text}")
+        resp.raise_for_status()
     except Exception as e:
-        backend_logger.error(f"[Telegram] Error sending alert: {e}")
+        backend_logger.error(f"[Telegram] Error sending message: {e}")
+        return  
+
+    # 2) Send the screenshot as PHOTO (optional)
+    if screenshot_path and os.path.exists(screenshot_path):
+        send_photo_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        caption = f"{title_emoji} {ticker} ({primary_conf}/10)"  # keep caption short
+
+        try:
+            with open(screenshot_path, "rb") as f:
+                files = {"photo": f}
+                data = {
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "caption": caption,
+                    "parse_mode": "HTML"
+                }
+                resp2 = requests.post(send_photo_url, data=data, files=files, timeout=20)
+                backend_logger.info(f"[Telegram] sendPhoto status={resp2.status_code} body={resp2.text}")
+                resp2.raise_for_status()
+        except Exception as e:
+            backend_logger.error(f"[Telegram] Error sending screenshot: {e}")
+    else:
+        backend_logger.info(f"[Telegram] screenshot_path missing or not found: {screenshot_path}")
