@@ -5,6 +5,13 @@ import time
 import logging
 from pathlib import Path
 import csv
+import sys
+# Add the parent directory (root) to sys.path so we can import tradingview_analyzer
+root_dir = Path(__file__).resolve().parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.append(str(root_dir))
+
+from tradingview_analyzer import TradingViewAnalyzer
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 r = redis.Redis(host='localhost', port=6379, db=0)
@@ -19,6 +26,9 @@ backend_logger = logging.getLogger("backend")
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 EXPIRIES_CSV = DATA_DIR / "expiries.csv"
 print(EXPIRIES_CSV)
+
+tv_analyzer = TradingViewAnalyzer()
+
 _exp_cache = {"mtime": 0.0, "rows": []}
 
 def _load_expiry_rows():
@@ -459,7 +469,16 @@ def submit_request_token():
     """
     try:
         data = request.get_json()
-        request_token = data.get('request_token', '').strip()
+        raw_input = data.get('request_token', '').strip()
+        
+        # 🟢 Extract token even if full URL is pasted
+        request_token = raw_input
+        if "request_token=" in raw_input:
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(raw_input)
+            qs = parse_qs(parsed.query)
+            if 'request_token' in qs:
+                request_token = qs['request_token'][0]
         
         if not request_token:
             return jsonify({"error": "Request token is required"}), 400
@@ -532,10 +551,23 @@ def submit_session_id():
     """
     try:
         data = request.get_json()
-        session_id = data.get('session_id', '').strip()
+        raw_input = data.get('session_id', '').strip()
+        
+        if not raw_input:
+            return jsonify({"error": "Session ID/URL is required"}), 400
+            
+        # Extract request_token if full URL is provided
+        session_id = raw_input
+        if "request_token=" in raw_input:
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(raw_input)
+            qs = parse_qs(parsed.query)
+            if 'request_token' in qs:
+                session_id = qs['request_token'][0]
+                backend_logger.info(f"Extracted request_token: {session_id}")
         
         if not session_id:
-            return jsonify({"error": "Session ID is required"}), 400
+            return jsonify({"error": "Valid request token not found in input"}), 400
         
         import sys
         import os
@@ -578,21 +610,134 @@ def submit_session_id():
 
 @app.route('/api/webhook/tradingview',methods=['POST'])
 def tradingview_webhook():
+
     try:
         data = request.get_json()
         backend_logger.info(f"TradingView webhook received: {data}")
         if not data: 
             return jsonify({"error": "No data received"}), 400
+        
+       
+        rsi_momentum = data.get("rsi_momentum")
+        
+        if rsi_momentum in ['POSITIVE', 'NEGATIVE']:
+            backend_logger.info(f"🎯 RSI Alert received: {rsi_momentum}")
+            
+           
+            import subprocess
+            script_path = Path(__file__).parent.parent / 'browseruse' / 'playwright_screenshot.py'
+            ticker = data.get('ticker', 'UNKNOWN')
+            interval = data.get('interval', '5') 
+            intent = data.get('intent', 'Evaluation') 
+            
+            backend_logger.info(f"Running analysis for {ticker} ({interval}m) | Intent: {intent}...")
+            
+            try:
+                result = subprocess.run(
+                    [sys.executable, str(script_path), rsi_momentum, ticker, interval, intent],
+                    capture_output=True,
+                    text=True,
+                    timeout=200, 
+                    cwd=str(script_path.parent)
+                )
+                
+                if result.returncode != 0:
+                    error_msg = result.stderr or "Screenshot analysis failed"
+                    backend_logger.error(f"Analysis error: {error_msg}")
+                    return jsonify({
+                        "status": "error",
+                        "error": error_msg
+                    }), 500
+                
+            
+                output_lines = result.stdout.strip().split('\n')
+                json_output = None
+                
+             
+                for i, line in enumerate(output_lines):
+                    if "[JSON OUTPUT]" in line and i + 1 < len(output_lines):
+                        
+                        json_str = '\n'.join(output_lines[i+1:])
+                        try:
+                            json_output = json.loads(json_str)
+                            break
+                        except:
+                            continue
+                
+                if not json_output:
+                 
+                    try:
+                        json_output = json.loads(output_lines[-1])
+                    except:
+                        backend_logger.error("Could not parse JSON from script output")
+                        return jsonify({
+                            "status": "error",
+                            "error": "Invalid JSON output from analysis"
+                        }), 500
+                
+               
+                signal = {
+                    "source": "tradingview_rsi",
+                    "ticker": ticker,
+                    "rsi_momentum": rsi_momentum,
+                    "timestamp": time.time(),
+                    "analysis": json_output
+                }
+                
+                # r.set("strategy:latest_vision_analysis", json.dumps(signal))
+                # r.set("strategy:tv_signal", json.dumps(signal))
+                
+                backend_logger.info(f"✅ Analysis complete: {json_output.get('trade_decision')}")
+                
+                
+                return jsonify({
+                    "status": "success",
+                    "ticker": ticker,
+                    "rsi_momentum": rsi_momentum,
+                    "trade_decision": json_output.get('trade_decision'),
+                    "entry_price": json_output.get('entry_price'),
+                    "stop_loss": json_output.get('stop_loss'),
+                    "target": json_output.get('target'),
+                    "confidence": json_output.get('confidence'),
+                    "full_analysis": json_output
+                }), 200
+                
+            except subprocess.TimeoutExpired:
+                backend_logger.error("Screenshot analysis timeout")
+                return jsonify({
+                    "status": "error",
+                    "error": "Analysis timeout (>45s)"
+                }), 504
+            except Exception as e:
+                backend_logger.error(f"Screenshot analysis exception: {e}")
+                return jsonify({
+                    "status": "error",
+                    "error": str(e)
+                }), 500
+        
+
+        strategy = data.get("strategy")
+        if strategy == "RSI_ADX_GPT":
+            result = tv_analyzer.analyze_gpt_vision(data)
+            return jsonify({
+                "status": "vision_analysis_triggered",
+                "message": result.get("message")
+            }), 200
+
+        decision = tv_analyzer.analyze(data)
+        backend_logger.info(f"TradingView Analysis decision: {decision}")
+
         signal = {
             "source" : "tradingview",
             "timestamp": time.time(),
-            "raw_data": data
+            "raw_data": data,
+            "decision": decision
         }
-        r.set("strategy:tv_signal",json.dumps(signal))
+        # r.set("strategy:tv_signal",json.dumps(signal))
 
         return jsonify({
             "status":"received",
-            "message":"Signal received successfully"
+            "decision":decision
         }),200
 
     except Exception as e:
