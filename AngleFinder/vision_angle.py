@@ -10,12 +10,12 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
-def analyze_trend_angle(screenshot_path):
+def analyze_trend_angle(screenshot_path, expected_trend="UNKNOWN"):
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     base64_image = encode_image(screenshot_path)
 
     prompt = (
-        "You are a technical analysis expert looking at a TradingView chart.\n\n"
+        f"You are a technical analysis expert reviewing a TradingView chart. The system triggered an explicit **{expected_trend}** signal.\n\n"
         "1. Focus on the LATEST (rightmost) indicator on the chart.\n"
         "2. Find the current trend direction/angle following that indicator.\n"
         "3. Evaluate if the trend is positive or negative, and closely estimate its angle based on price action.\n"
@@ -58,13 +58,13 @@ def analyze_trend_angle(screenshot_path):
 
 
 
-def analyze_pullback(screenshot_path):
+def analyze_pullback(screenshot_path, expected_trend="UNKNOWN"):
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     base64_image = encode_image(screenshot_path)
   
     prompt = (
-        "You are a strict technical analysis expert looking at a TradingView chart with candlestick bodies and wicks explicitly enabled.\n\n"
-        "1. Identify the current market sentiment (BULLISH or BEARISH) based on the latest trend.\n"
+        f"You are a strict technical analysis expert looking at a chart with wicks explicitly enabled. The system triggered an explicit **{expected_trend}** signal.\n\n"
+        f"1. Validate that the current market sentiment aligns with the {expected_trend} signal (BULLISH for UP, BEARISH for DOWN).\n"
         "2. Look for a 'Pullback' towards the slow signal line (the EMA):\n"
         "   - **Bullish Pullback**: Look at the latest candles. Does the LOWER WICK dip down and touch (or nearly touch) the EMA line? The gap between the absolute Low of the wick and the EMA MUST be extremely small (visually within 0.1% of the price) or piercing it.\n"
         "   - **Bearish Pullback**: Look at the latest candles. Does the UPPER WICK retrace up and touch (or nearly touch) the EMA line? The gap between the absolute High of the wick and the EMA MUST be extremely small (visually within 0.1% of the price) or piercing it.\n"

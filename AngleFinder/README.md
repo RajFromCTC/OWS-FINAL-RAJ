@@ -44,10 +44,11 @@ In the **Message Body** of the TradingView alert, paste the following JSON paylo
 {
   "ticker": "{{exchange}}:{{ticker}}",
   "interval": "{{interval}}",
-  "rsi_momentum": "{{plot_0}}"
+  "trend": "UP"
 }
 ```
-*For example, if NIFTY triggers, TradingView replaces `{{ticker}}` so the payload mathematically evaluates to `{"ticker": "NSE:NIFTY"}`.*
+
+*Note: You should create TWO separate alerts in TradingView per asset/indicator. Create one alert specifically for the bullish signal (where you hardcode `"trend": "UP"` in the body), and a second alert specifically for the bearish signal (where you hardcode `"trend": "DOWN"`). This allows TradingView to explicitly inform the AI what trend to look for!*
 
 ---
 
@@ -96,3 +97,6 @@ Once an alert survives both the Angle Test and the Pullback Test, it compiles th
   "trade_decision": "TRADE CONFIRMED"
 }
 ```
+PS C:\Users\rajna> Invoke-RestMethod -Uri "http://localhost:8000/webhook" -Method Post -ContentType "application/json" -Body '{"ticker":"CME:BTC1!"}' 
+
+to check it manually using cmd 
