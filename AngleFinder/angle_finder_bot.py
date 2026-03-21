@@ -142,8 +142,9 @@ async def take_pullback_screenshot(ticker):
 
 def process_alert(payload, task_id):
     ticker = payload.get("ticker", DEFAULT_TICKER).strip().upper()
+    trend = payload.get("trend", "UNKNOWN").upper()
     
-    print(f"[Bot][{ticker} - Task {task_id}] Waiting 2 minutes for trend...")
+    print(f"[Bot][{ticker} - Task {task_id}] Signal: {trend} | Waiting 2 minutes for trend...")
     
     for _ in range(60):#wait 1 min before taking ss and also do check if id is relevant or not 
         if task_id != active_tasks.get(ticker): return
@@ -159,7 +160,7 @@ def process_alert(payload, task_id):
             time.sleep(5)
             continue
             
-        analysis = analyze_trend_angle(final_img_path)
+        analysis = analyze_trend_angle(final_img_path, trend)
         if task_id != active_tasks.get(ticker): return
         
         print(f"[Bot][{ticker} - Task {task_id}] Analysis: {analysis.get('estimated_angle')}")
@@ -175,7 +176,7 @@ def process_alert(payload, task_id):
                 time.sleep(5)
                 continue
                 
-            pb_analysis = analyze_pullback(pb_path)
+            pb_analysis = analyze_pullback(pb_path, trend)
             print(f"\n--- GPT PULLBACK ANALYSIS ---")
             print(json.dumps(pb_analysis, indent=2))
             
@@ -196,7 +197,7 @@ def process_alert(payload, task_id):
                 }
                 
                 try:
-                    send_telegram_alert(ticker, primary_data, {}, {}, payload.get("rsi_momentum", "N/A"), final_img_path)
+                    send_telegram_alert(ticker, primary_data, {}, {}, "N/A", final_img_path)
                     print(f"[Bot][{ticker} - Task {task_id}] Telegram sent successfully! Exiting task.")
                 except Exception as e:
                     print(f"[Bot] Telegram send error: {e}")
